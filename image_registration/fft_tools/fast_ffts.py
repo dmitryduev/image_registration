@@ -2,24 +2,50 @@ import numpy as np
 import warnings
 
 try:
-    import fftw3
+    import pyfftw
     has_fftw = True
 
+    # mimicking the numpy way: [faster than numpy, but slower than the direct way]
+    # def fftwn(array, nthreads=1):
+    #     return pyfftw.interfaces.numpy_fft.fftn(array, threads=nthreads)
+
+    # def ifftwn(array, nthreads=1):
+    #     return pyfftw.interfaces.numpy_fft.ifftn(array, threads=nthreads)
+
+    # the fastest way:
     def fftwn(array, nthreads=1):
-        array = array.astype('complex').copy()
-        outarray = array.copy()
-        fft_forward = fftw3.Plan(array, outarray, direction='forward',
-                flags=['estimate'], nthreads=nthreads)
-        fft_forward.execute()
-        return outarray
+        a = array.astype('complex128')
+        b = np.zeros_like(a)
+        fft = pyfftw.FFTW(a, b, axes=(0, 1), direction='FFTW_FORWARD', flags=('FFTW_MEASURE',),
+                          threads=nthreads, planning_timelimit=None)
+        return fft()
 
     def ifftwn(array, nthreads=1):
-        array = array.astype('complex').copy()
-        outarray = array.copy()
-        fft_backward = fftw3.Plan(array, outarray, direction='backward',
-                flags=['estimate'], nthreads=nthreads)
-        fft_backward.execute()
-        return outarray / np.size(array)
+        a = array.astype('complex128')
+        b = np.zeros_like(a)
+        ifft = pyfftw.FFTW(a, b, axes=(0, 1), direction='FFTW_BACKWARD', flags=('FFTW_MEASURE',),
+                           threads=nthreads, planning_timelimit=None)
+        return ifft()
+
+    # import fftw3
+    # has_fftw = True
+    #
+    # def fftwn(array, nthreads=1):
+    #     array = array.astype('complex').copy()
+    #     outarray = array.copy()
+    #     fft_forward = fftw3.Plan(array, outarray, direction='forward',
+    #             flags=['estimate'], nthreads=nthreads)
+    #     fft_forward.execute()
+    #     return outarray
+    #
+    # def ifftwn(array, nthreads=1):
+    #     array = array.astype('complex').copy()
+    #     outarray = array.copy()
+    #     fft_backward = fftw3.Plan(array, outarray, direction='backward',
+    #             flags=['estimate'], nthreads=nthreads)
+    #     fft_backward.execute()
+    #     return outarray / np.size(array)
+    
 except ImportError:
     fftn = np.fft.fftn
     ifftn = np.fft.ifftn

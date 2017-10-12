@@ -7,6 +7,7 @@ from .fft_tools import correlate2d,fast_ffts,dftups,upsample_image,zoom,shift
 from . import iterative_zoom
 import warnings
 import numpy as np
+import scipy.stats
 
 __all__ = ['chi2_shift','chi2_shift_iterzoom','chi2n_map']
 
@@ -24,10 +25,10 @@ def chi2_shift(im1, im2, err=None, upsample_factor='auto', boundary='wrap',
 
     .. math::
             \chi^2(dx,dy) = \Sigma_{ij} \\frac{(X_{ij}-Y_{ij}(dx,dy))^2}{\sigma_{ij}^2}
-                          
+
     ..
           & = & \Sigma_{ij} \left[ X_{ij}^2/\sigma_{ij}^2 - 2X_{ij}Y_{ij}(dx,dy)/\sigma_{ij}^2 + Y_{ij}(dx,dy)^2/\sigma_{ij}^2 \\right]  \\\\
-                  
+
 
     Equation 2-4: blahha
 
@@ -62,8 +63,8 @@ def chi2_shift(im1, im2, err=None, upsample_factor='auto', boundary='wrap',
     Technically, only terms 2 and 3 has any effect on the resulting image,
     since term 1 is the same for all shifts, and the quantity of interest is
     :math:`\Delta \chi^2` when determining the best-fit shift and error.
-    
-    
+
+
     Parameters
     ----------
     im1 : np.ndarray
@@ -126,7 +127,7 @@ def chi2_shift(im1, im2, err=None, upsample_factor='auto', boundary='wrap',
     >>> dx,dy,edx,edy = chi2_shift(image, shifted, upsample_factor='auto')
     >>> shifted2 = image_registration.fft_tools.shift2d(image,3.665,-4.25) + np.random.randn(100,100)
     >>> dx2,dy2,edx2,edy2 = chi2_shift(image, shifted2, upsample_factor='auto')
-    
+
     """
     chi2,term1,term2,term3 = chi2n_map(im1, im2, err, boundary=boundary,
                                        nthreads=nthreads, zeromean=zeromean,
@@ -139,8 +140,8 @@ def chi2_shift(im1, im2, err=None, upsample_factor='auto', boundary='wrap',
     im2 = np.nan_to_num(im2)
 
     ylen,xlen = im1.shape
-    xcen = xlen/2-(1-xlen%2) 
-    ycen = ylen/2-(1-ylen%2) 
+    xcen = xlen/2-(1-xlen%2)
+    ycen = ylen/2-(1-ylen%2)
 
     # original shift calculation
     yshift = ymax-ycen # shift im2 by these numbers to get im1
@@ -153,16 +154,17 @@ def chi2_shift(im1, im2, err=None, upsample_factor='auto', boundary='wrap',
 
     # find delta-chi^2 limiting values for varying DOFs
     try:
-        import scipy.stats
+        # this is time consuming if repeated many times for no practical use
+        # import scipy.stats
         # 1,2,3-sigma delta-chi2 levels
-        m1 = scipy.stats.chi2.ppf( 1-scipy.stats.norm.sf(1)*2, nfitted )
-        m2 = scipy.stats.chi2.ppf( 1-scipy.stats.norm.sf(2)*2, nfitted )
-        m3 = scipy.stats.chi2.ppf( 1-scipy.stats.norm.sf(3)*2, nfitted )
+        # m1 = scipy.stats.chi2.ppf( 1-scipy.stats.norm.sf(1)*2, nfitted )
+        # m2 = scipy.stats.chi2.ppf( 1-scipy.stats.norm.sf(2)*2, nfitted )
+        # m3 = scipy.stats.chi2.ppf( 1-scipy.stats.norm.sf(3)*2, nfitted )
         m_auto = scipy.stats.chi2.ppf( 1-scipy.stats.norm.sf(max_nsig)*2, nfitted )
     except ImportError:
         # assume m=2 (2 degrees of freedom)
         m1 = 2.2957489288986364
-        m2 = 6.1800743062441734 
+        m2 = 6.1800743062441734
         m3 = 11.829158081900793
         m_auto = 2.6088233328527037 # slightly >1 sigma
 
@@ -302,18 +304,18 @@ def chi2_shift_iterzoom(im1, im2, err=None, upsample_factor='auto',
     A simpler version of :func:`chi2_shift` that only computes the
     :math:`\chi^2` array on the largest scales, then uses a fourier upsampling
     technique to zoom in.
-    
-    
+
+
     Parameters
     ----------
     im1 : np.ndarray
     im2 : np.ndarray
-        The images to register. 
+        The images to register.
     err : np.ndarray
         Per-pixel error in image 2
     boundary : 'wrap','constant','reflect','nearest'
         Option to pass to map_coordinates for determining what to do with
-        shifts outside of the boundaries.  
+        shifts outside of the boundaries.
     upsample_factor : int or 'auto'
         upsampling factor; governs accuracy of fit (1/usfac is best accuracy)
         (can be "automatically" determined based on chi^2 error)
@@ -362,7 +364,7 @@ def chi2_shift_iterzoom(im1, im2, err=None, upsample_factor='auto',
 
     Examples
     --------
-    Create a 2d array, 
+    Create a 2d array,
     shift it in both directions,
     then use chi2_shift_iterzoom to determine the shift
 
@@ -373,7 +375,7 @@ def chi2_shift_iterzoom(im1, im2, err=None, upsample_factor='auto',
     >>> dx,dy,edx,edy = chi2_shift_iterzoom(image, shifted, upsample_factor='auto')
     >>> shifted2 = image_registration.fft_tools.shift2d(image,3.665,-4.25)
     >>> dx2,dy2,edx2,edy2 = chi2_shift_iterzoom(image, shifted2, upsample_factor='auto')
-    
+
     """
     chi2,term1,term2,term3 = chi2n_map(im1, im2, err, boundary=boundary,
             nthreads=nthreads, zeromean=zeromean, use_numpy_fft=use_numpy_fft,
@@ -395,7 +397,7 @@ def chi2_shift_iterzoom(im1, im2, err=None, upsample_factor='auto',
     else:
         (yy,xx),chi2_rezoom = zoom.zoomnd(chi2, usfac=zf*rezoom_factor,
                 offsets=offsets, outshape=rezoom_shape,
-                middle_convention=np.floor, return_xouts=True, 
+                middle_convention=np.floor, return_xouts=True,
                 **kwargs)
 
     # x and y are swapped and negative
@@ -419,12 +421,12 @@ def chi2n_map(im1, im2, err=None, boundary='wrap', nthreads=1,
     ----------
     im1 : np.ndarray
     im2 : np.ndarray
-        The images to register. 
+        The images to register.
     err : np.ndarray
         Per-pixel error in image 2
     boundary : 'wrap','constant','reflect','nearest'
         Option to pass to map_coordinates for determining what to do with
-        shifts outside of the boundaries.  
+        shifts outside of the boundaries.
     zeromean : bool
         Subtract the mean from the images before cross-correlating?  If no, you
         may get a 0,0 offset because the DC levels are strongly correlated.
@@ -465,7 +467,7 @@ def chi2n_map(im1, im2, err=None, boundary='wrap', nthreads=1,
         # err is always squared, so negative errors are "sort of ok"
         im2[err==0] = 0
         im1[err==0] = 0
-        err[err==0] = 1 
+        err[err==0] = 1
 
         # we want im1 first, because it's first down below
         term3 = correlate2d(im1**2, 1./err**2, boundary=boundary,
@@ -473,7 +475,7 @@ def chi2n_map(im1, im2, err=None, boundary='wrap', nthreads=1,
 
     else: # scalar error is OK
         if err is None:
-            err = 1. 
+            err = 1.
         term3 = ((im1**2/err**2)).sum()
 
     # term 1 and 2 don't rely on err being an array
@@ -514,7 +516,7 @@ def chi2_shift_leastsq(im1, im2, err=None, mode='wrap', maxoff=None,
             Per-pixel error in image 2
         mode : 'wrap','constant','reflect','nearest'
             Option to pass to map_coordinates for determining what to do with
-            shifts outside of the boundaries.  
+            shifts outside of the boundaries.
         maxoff : None or int
             If set, crop the data after shifting before determining chi2
             (this is a good thing to use; not using it can result in weirdness
@@ -544,8 +546,8 @@ def chi2_shift_leastsq(im1, im2, err=None, mode='wrap', maxoff=None,
     if not use_fft:
         yy,xx = np.indices(im1.shape)
     ylen,xlen = im1.shape
-    xcen = xlen/2-(1-xlen%2) 
-    ycen = ylen/2-(1-ylen%2) 
+    xcen = xlen/2-(1-xlen%2)
+    ycen = ylen/2-(1-ylen%2)
 
     # possible requirements for only this function
     import lmfit
@@ -606,7 +608,7 @@ def chi2_shift_leastsq(im1, im2, err=None, mode='wrap', maxoff=None,
         return fxsh,fysh,efxsh,efysh
     else:
         return fxsh,fysh
-        
+
     # ignore
     if return_error:
         if cov is None:
@@ -623,4 +625,3 @@ def per_iteration(pars, i, resid, *args, **kws):
         for p in pars.values():
             print(p.name , p.value, )
         print(" chi^2: ",(resid**2).sum())
-
